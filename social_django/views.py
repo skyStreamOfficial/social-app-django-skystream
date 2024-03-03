@@ -7,7 +7,7 @@ from django.views.decorators.http import require_POST
 from social_core.actions import do_auth, do_complete, do_disconnect
 from social_core.utils import setting_name
 
-from .utils import maybe_require_post, psa
+from .utils import psa 
 
 NAMESPACE = getattr(settings, setting_name("URL_NAMESPACE"), None) or "social"
 
@@ -17,10 +17,17 @@ DEFAULT_SESSION_TIMEOUT = None
 
 
 @never_cache
-@maybe_require_post
 @psa(f"{NAMESPACE}:complete")
 def auth(request, backend):
-    return do_auth(request.backend, redirect_name=REDIRECT_FIELD_NAME)
+    query_string = request.GET.urlencode()
+    query_string = query_string.split('=')
+    # if (query_string[1] == 'app'){
+    #     kwargs['oauth'] = {
+    #         'key': '755291758162-sq0pkmb3lmh63tm5esi6ejimb1ojub77.apps.googleusercontent.com',
+    #         'secret': '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',
+    #     }
+    # }
+    return do_auth(request.backend, redirect_name=REDIRECT_FIELD_NAME, app = query_string[1])
 
 
 @never_cache

@@ -2,17 +2,14 @@
 
 import json
 
-from django.db import migrations, models
+from django.db import migrations
 
 
 def migrate_json_field(apps, schema_editor):
     UserSocialAuth = apps.get_model("social_django", "UserSocialAuth")
     Partial = apps.get_model("social_django", "Partial")
     db_alias = schema_editor.connection.alias
-    to_be_updated = []
-    for auth in (
-        UserSocialAuth.objects.using(db_alias).exclude(extra_data='""').iterator()
-    ):
+    for auth in UserSocialAuth.objects.using(db_alias).all():
         old_value = auth.extra_data
         if isinstance(old_value, str):
             try:
@@ -20,16 +17,7 @@ def migrate_json_field(apps, schema_editor):
             except json.JSONDecodeError as error:
                 print(f"Failed to migrate extra_data {old_value}: {error}")
         auth.extra_data_new = old_value
-        to_be_updated.append(auth)
-
-        if len(to_be_updated) >= 1000:
-            UserSocialAuth.objects.bulk_update(to_be_updated, ["extra_data_new"])
-            to_be_updated.clear()
-
-    if to_be_updated:
-        UserSocialAuth.objects.bulk_update(to_be_updated, ["extra_data_new"])
-        to_be_updated.clear()
-
+        auth.save(update_fields=["extra_data_new"])
     for auth in Partial.objects.using(db_alias).all():
         old_value = auth.data
         if isinstance(old_value, str):
@@ -41,50 +29,11 @@ def migrate_json_field(apps, schema_editor):
         auth.save(update_fields=["data_new"])
 
 
-def migrate_json_field_backwards(apps, schema_editor):
-    UserSocialAuth = apps.get_model("social_django", "UserSocialAuth")
-    Partial = apps.get_model("social_django", "Partial")
-    db_alias = schema_editor.connection.alias
-    to_be_updated = []
-
-    is_text_field = isinstance(
-        UserSocialAuth._meta.get_field("extra_data"),
-        models.TextField,
-    )
-    for auth in UserSocialAuth.objects.using(db_alias).iterator():
-        new_value = auth.extra_data_new
-        if is_text_field:
-            new_value = json.dumps(new_value)
-        auth.extra_data = new_value
-        to_be_updated.append(auth)
-
-        if len(to_be_updated) >= 1000:
-            UserSocialAuth.objects.bulk_update(to_be_updated, ["extra_data"])
-            to_be_updated.clear()
-
-    if to_be_updated:
-        UserSocialAuth.objects.bulk_update(to_be_updated, ["extra_data"])
-        to_be_updated.clear()
-
-    is_text_field = issubclass(
-        Partial._meta.get_field("data"),
-        models.TextField,
-    )
-    for auth in Partial.objects.using(db_alias).all():
-        new_value = auth.data_new
-        if is_text_field:
-            new_value = json.dumps(new_value)
-        auth.data = new_value
-        auth.save(update_fields=["data"])
-
-
 class Migration(migrations.Migration):
     dependencies = [
         ("social_django", "0012_usersocialauth_extra_data_new"),
     ]
 
     operations = [
-        migrations.RunPython(
-            migrate_json_field, migrate_json_field_backwards, elidable=True
-        ),
+        migrations.RunPython(migrate_json_field, elidable=True),
     ]

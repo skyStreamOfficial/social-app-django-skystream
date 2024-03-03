@@ -1,5 +1,4 @@
 """Django ORM models for Social Auth"""
-
 from django.conf import settings
 from django.db import models
 from django.db.utils import IntegrityError
